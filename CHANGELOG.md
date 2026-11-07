@@ -9,3 +9,4 @@ versions follow [Semantic Versioning](https://semver.org/) (git tag `vX.Y.Z` →
 - Public IPv4 lookup from two sources (Cloudflare trace, ipify), only valid public addresses, both must agree
 - Cloudflare API: find zone and record by name, read the address, PATCH only `content`; dry run; token via a header file
 - Main loop: startup checks, one-shot mode, ntfy on change/failures/recovery, clean exit on SIGTERM, health check
+- Image: Ubuntu 26.04 (pinned by digest), tini, non-root UID 10001, health check, OCI labels; CI builds it

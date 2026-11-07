@@ -24,13 +24,10 @@ echo "${#files[@]} files: ok"
 
 echo "== hadolint"
 for f in Dockerfile tests/Dockerfile; do
-  if [ -f "$f" ]; then
-    # Read from stdin (docker run -i) so the config in .hadolint.yaml is found at /code
-    docker run --rm -i -v "$PWD/.hadolint.yaml:/.config/hadolint.yaml:ro" "$HADOLINT_IMAGE" < "$f"
-    echo "$f: ok"
-  else
-    echo "$f: not there yet, skipped"
-  fi
+  # The Dockerfile is read on stdin (docker run -i); the settings in .hadolint.yaml are mounted where
+  # hadolint looks for its config
+  docker run --rm -i -v "$PWD/.hadolint.yaml:/.config/hadolint.yaml:ro" "$HADOLINT_IMAGE" < "$f"
+  echo "$f: ok"
 done
 
 echo "== bats"
