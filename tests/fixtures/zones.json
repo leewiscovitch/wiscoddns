@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": [
+    {
+      "id": "zone123",
+      "name": "example.org",
+      "status": "active",
+      "account": { "id": "account789", "name": "Example account" }
+    }
+  ],
+  "result_info": { "page": 1, "per_page": 20, "count": 1, "total_count": 1, "total_pages": 1 }
+}

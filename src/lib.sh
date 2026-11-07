@@ -85,3 +85,78 @@ wd_public_ip() {
   esac
   printf '%s\n' "${answers[0]}"
 }
+
+# --- Cloudflare API -----------------------------------------------------------------------------------------
+#
+# Cloudflare API v4 (https://developers.cloudflare.com/api/). Three endpoints are used:
+#   GET   /zones?name=<zone>                                    list zones, filtered by name   -> zone ID
+#   GET   /zones/<zone_id>/dns_records?type=A&name.exact=<name> list DNS records, exact name    -> record ID
+#   GET   /zones/<zone_id>/dns_records/<record_id>              one record                     -> its content
+#   PATCH /zones/<zone_id>/dns_records/<record_id>              change a record
+# PATCH only changes the fields it is sent (name, type, content, ttl, proxied, comment, tags are accepted);
+# we send only {"content": "<ip>"}, so OpenTofu's settings (TTL, proxied, comment) stay as they are.
+# Every response is JSON: {"success": true|false, "errors": [{"code", "message"}], "result": ...}.
+
+WD_CF_API=${WD_CF_API:-https://api.cloudflare.com/client/v4}
+# File with the line "Authorization: Bearer <token>" (written by wiscoddns.sh, mode 0600). curl reads headers
+# from it with -H @file, so the token never shows on a command line (ps, /proc/<pid>/cmdline).
+WD_AUTH_HEADER_FILE=${WD_AUTH_HEADER_FILE:-/tmp/wiscoddns/auth-header}
+
+# wd_cf_api METHOD PATH [JSON]: calls the API, prints the response body; rc 1 on a connection failure, a body
+# that isn't JSON, or "success": false (Cloudflare's error messages are logged).
+wd_cf_api() {
+  local method=$1 path=$2 data=${3:-} body
+  local args=(-sS --max-time 15 -X "$method" -H @"$WD_AUTH_HEADER_FILE" -H 'Content-Type: application/json')
+  [ -n "$data" ] && args+=(--data "$data")
+  # No -f: on 4xx/5xx Cloudflare still sends JSON with the reason, and we want to log it
+  if ! body=$(curl "${args[@]}" "$WD_CF_API$path"); then
+    wd_log ERROR "Cloudflare API $method $path: connection failed"
+    return 1
+  fi
+  if ! jq -e . >/dev/null 2>&1 <<< "$body"; then
+    wd_log ERROR "Cloudflare API $method $path: answer is not JSON (${body:0:60})"
+    return 1
+  fi
+  if ! jq -e '.success == true' >/dev/null <<< "$body"; then
+    wd_log ERROR "Cloudflare API $method $path failed: $(jq -r '[.errors[]? | "\(.code): \(.message)"] | join("; ")' <<< "$body")"
+    return 1
+  fi
+  printf '%s\n' "$body"
+}
+
+# wd_lookup_ids: sets WD_ZONE_ID and WD_RECORD_ID from the names in WISCODDNS_ZONE and WISCODDNS_RECORD.
+# Looked up by name at startup, so no IDs need to be configured. rc 1 if either is missing.
+wd_lookup_ids() {
+  local body
+  body=$(wd_cf_api GET "/zones?name=$WISCODDNS_ZONE") || return 1
+  WD_ZONE_ID=$(jq -r '.result[0].id // empty' <<< "$body")
+  if [ -z "$WD_ZONE_ID" ]; then
+    wd_log ERROR "zone $WISCODDNS_ZONE not found (check WISCODDNS_ZONE and the token's zone access)"
+    return 1
+  fi
+  body=$(wd_cf_api GET "/zones/$WD_ZONE_ID/dns_records?type=A&name.exact=$WISCODDNS_RECORD") || return 1
+  WD_RECORD_ID=$(jq -r '.result[0].id // empty' <<< "$body")
+  if [ -z "$WD_RECORD_ID" ]; then
+    # Never created here: whoever owns the zone creates the record (wiscoddns only changes its address)
+    wd_log ERROR "A record $WISCODDNS_RECORD not found: it must exist before wiscoddns starts"
+    return 1
+  fi
+}
+
+# wd_record_ip: prints the record's current address (read from the API, never from DNS: a local DNS server
+# or a cache may answer something else)
+wd_record_ip() {
+  local body
+  body=$(wd_cf_api GET "/zones/$WD_ZONE_ID/dns_records/$WD_RECORD_ID") || return 1
+  jq -r '.result.content' <<< "$body"
+}
+
+# wd_update_record IP: sets the record's address. With WISCODDNS_DRY_RUN=1 it only logs what it would do.
+wd_update_record() {
+  local ip=$1
+  if [ "${WISCODDNS_DRY_RUN:-0}" = 1 ]; then
+    wd_log INFO "DRY-RUN would set $WISCODDNS_RECORD -> $ip"
+    return 0
+  fi
+  wd_cf_api PATCH "/zones/$WD_ZONE_ID/dns_records/$WD_RECORD_ID" "$(jq -cn --arg ip "$ip" '{content: $ip}')" >/dev/null
+}

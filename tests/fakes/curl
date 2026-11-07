@@ -7,8 +7,11 @@
 #   - its RESPONSE_FILE is printed; RESPONSE_FILE "FAIL" exits 7 (curl's "couldn't connect")
 #   - no matching route: exit 7 too
 # Every call is appended to $FAKE_CURL_DIR/calls.log as:  METHOD URL DATA
+# and its full command line to $FAKE_CURL_DIR/argv.log (tests check that no secret is ever on it).
 # All other flags (-s, -f, -H, --max-time ...) are accepted and ignored.
 set -euo pipefail
+
+printf '%s\n' "$*" >> "$FAKE_CURL_DIR/argv.log"
 
 method=GET url="" data=""
 while [ $# -gt 0 ]; do

@@ -1,0 +1,13 @@
+{
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": {
+    "id": "rec456",
+    "name": "ddns.example.org",
+    "type": "A",
+    "content": "198.51.100.7",
+    "proxied": false,
+    "ttl": 60
+  }
+}

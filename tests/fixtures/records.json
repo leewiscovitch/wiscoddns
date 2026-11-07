@@ -1,0 +1,21 @@
+{
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": [
+    {
+      "id": "rec456",
+      "name": "ddns.example.org",
+      "type": "A",
+      "content": "198.51.100.7",
+      "proxiable": true,
+      "proxied": false,
+      "ttl": 60,
+      "comment": "Managed by OpenTofu; address kept current by wiscoddns",
+      "tags": [],
+      "created_on": "2026-11-07T12:00:00.000000Z",
+      "modified_on": "2026-11-07T12:00:00.000000Z"
+    }
+  ],
+  "result_info": { "page": 1, "per_page": 100, "count": 1, "total_count": 1, "total_pages": 1 }
+}
