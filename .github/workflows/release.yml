@@ -1,0 +1,70 @@
+# Release: pushing a tag like v1.2.3 builds the image for two CPU types, publishes it to GitHub Container
+# Registry (ghcr.io/leewiscovitch/wiscoddns) and scans it for known vulnerabilities.
+#   git tag -s v1.2.3 -m "wiscoddns 1.2.3" && git push origin v1.2.3
+name: release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+# The workflow's own GITHUB_TOKEN gets just enough: read the code, write packages (push to ghcr.io).
+# No personal token or stored secret is needed.
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # QEMU emulates other CPU types, so this x86 runner can build the arm64 image too (slower, but simple)
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+
+      # Buildx (BuildKit) builds several platforms at once and pushes them as one multi-arch image
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      # Log in to ghcr.io as the user who pushed the tag, with the workflow's temporary token
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Work out the image tags from the git tag. For v1.2.3:
+      #   1.2.3       exact version (what a deployment pins)
+      #   1.2 and 1   move to the newest 1.2.x / 1.x.y release
+      #   sha-abc1234 the commit, for tracing an image back to its code
+      # It also prepares the OCI labels (version, revision, created ...).
+      - id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ghcr.io/leewiscovitch/wiscoddns
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
+
+      # Build for both platforms and push. VERSION ends up in the image (the program logs it at startup)
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            REVISION=${{ github.sha }}
+
+      # Scan the published image for known vulnerabilities (CVEs) in its packages. The job fails on CRITICAL
+      # or HIGH ones that already have a fix (ignore-unfixed: nothing to do about the others until Ubuntu ships
+      # one). A red release means: rebuild on a newer base (Dependabot's pull request) and release again.
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ghcr.io/leewiscovitch/wiscoddns:${{ steps.meta.outputs.version }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
