@@ -126,6 +126,14 @@ Two consequences:
 `docker image ls wiscoddns:dev` reports **185 MB** (what it takes on disk, unpacked); about 117 MB of that is
 the Ubuntu base, shared with any other image built on the same base.
 
+### `apt-get`, not `apt`
+
+The Dockerfile uses `apt-get`. Both install the same packages, but `apt` is meant for people at a terminal
+(progress bars, colours) and its command-line interface may change between releases; it even says so when run
+from a script: `WARNING: apt does not have a stable CLI interface. Use with caution in scripts.` `apt-get` keeps
+a stable interface for scripts, and hadolint flags `apt` in a `RUN` line (rule DL3027). At your own terminal,
+`apt` is the nicer one.
+
 ### Tags and digests
 
 `ubuntu:26.04` is a **tag**: a name that can be moved to a new build at any time (security updates). A
