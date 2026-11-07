@@ -5,7 +5,7 @@ used in this repo and what their output looks like.
 
 Sections (filled in as the project grows):
 
-1. Testing (below)
+1. Testing
 2. The app: one round, step by step
 3. The image: layers, size, the base image digest, tini, the non-root user, the health check
 4. CI: what runs on every push
@@ -69,6 +69,29 @@ wiscoddns talks to the outside world only through `curl`. The tests put `tests/f
 `curl` means the fake one: it answers from a list of routes the test sets up and writes down every call. A test
 can then say "the IP service failed and Cloudflare returned an error" and check exactly which calls were made,
 in a fraction of a second, without touching the internet.
+
+## 2. The app: one round, step by step
+
+`src/wiscoddns.sh` checks its settings, writes the token into a 0600 header file, looks up the zone and record IDs
+by name, then repeats one **round** (`wd_round` in `src/lib.sh`):
+
+```
+$ docker run --rm -e WISCODDNS_ONCE=1 -e WISCODDNS_DRY_RUN=1 \
+    -e WISCODDNS_ZONE=example.org -e WISCODDNS_RECORD=ddns.example.org \
+    -v "$PWD/cloudflare_token:/run/secrets/cloudflare_token:ro" wiscoddns:dev
+2026-11-07T05:39:47Z INFO wiscoddns dev starting: record=ddns.example.org zone=example.org interval=300s dry_run=1 alert_after=3 ntfy=off
+2026-11-07T05:39:47Z INFO found zone <id>, record <id>
+2026-11-07T05:39:48Z INFO ddns.example.org unchanged (203.0.113.9)
+```
+
+1. `wd_public_ip` asks both IP sources. `wd_is_public_ipv4` throws away anything that isn't a public IPv4 (error
+   pages, IPv6, private ranges: each range is listed with its RFC in the code). Two valid answers must agree
+2. `wd_record_ip` reads the record from the Cloudflare API
+3. Same address: log `unchanged`, done. Different: `wd_update_record` sends a PATCH with only the new
+   `content`, then `wd_notify` posts to ntfy
+
+A failed round writes nothing; the loop counts failures and alerts once when the count reaches
+`WISCODDNS_FAIL_ALERT_AFTER`, then once more when a round works again.
 
 ## 3. The image
 
@@ -166,4 +189,91 @@ Missing settings stop the program at once, with one line that says what's wrong:
 $ docker run --rm wiscoddns:dev; echo rc=$?
 2026-11-07T05:15:07Z ERROR WISCODDNS_RECORD is not set (the full record name, e.g. ddns.example.org)
 rc=1
+```
+
+## 4. CI: what runs on every push
+
+[.github/workflows/ci.yml](../.github/workflows/ci.yml) runs on GitHub's machines (a fresh Ubuntu VM per job)
+for every push and pull request:
+
+- **test**: `scripts/test.sh`, exactly as on a laptop
+- **build**: `docker build` of the real image (nothing is published); runs only if `test` passed (`needs: test`)
+
+```
+$ gh run view 42342728882          # the run id comes from: gh run list --workflow ci
+✓ main ci · 42342728882
+JOBS
+✓ test in 24s
+✓ build in 23s
+```
+
+Both job names are **required status checks** on `main` (branch protection, managed with OpenTofu from the
+author's homelab repo): a pull request can't merge while either is red.
+
+**Why actions are pinned by SHA.** `uses: actions/checkout@v7` follows a tag that the action's owner can move;
+if that account were compromised, every workflow using it would run the attacker's code. A commit SHA can't be
+moved. The comment keeps it readable, and Dependabot proposes updates:
+
+```yaml
+- uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+```
+
+**Least privilege.** `permissions: contents: read` gives the workflow's automatic `GITHUB_TOKEN` read access
+only. The release workflow adds `packages: write`, the one extra thing it needs.
+
+## 5. Releasing
+
+A release is a **git tag**. Pushing `v1.0.0` starts [release.yml](../.github/workflows/release.yml):
+
+```
+$ git tag -s v1.0.0 -m "wiscoddns 1.0.0"     # -s signs the tag (shows "Verified" on GitHub)
+$ git push origin v1.0.0
+$ gh run watch                                # follow it live
+```
+
+1. **QEMU + Buildx** build the image twice, for `linux/amd64` (PCs, servers) and `linux/arm64` (Raspberry Pi,
+   ARM servers). The arm64 build runs under emulation, which is why it is the slow part
+2. **metadata-action** turns the git tag into image tags: `1.0.0`, `1.0`, `1` and `sha-<commit>`
+3. **build-push-action** pushes both builds under one **multi-arch index** to `ghcr.io/leewiscovitch/wiscoddns`;
+   `docker pull` picks the right one for the machine
+4. **Trivy** scans the pushed image for known vulnerabilities (CVEs). Fixable CRITICAL or HIGH findings turn the
+   run red: rebuild on a newer base (Dependabot's pull request) and release a patch version
+
+### SemVer and the moving tags
+
+[Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`. PATCH = fixes, MINOR = new features that
+change nothing for existing users, MAJOR = something users must change (a renamed variable, new behaviour).
+
+| Image tag | Points to | Who uses it |
+| --- | --- | --- |
+| `1.0.0` | exactly this build, forever | deployments (pin this) |
+| `1.0` | the newest `1.0.x` | "give me fixes" |
+| `1` | the newest `1.x.y` | "give me anything compatible" |
+| `sha-abc1234` | the build of that commit | tracing an image to its code |
+
+There is deliberately no `latest`: it says nothing about what you get.
+
+### GHCR and package visibility
+
+GitHub Container Registry stores images next to the repo. The first push creates a **private** package, even
+from a public repo; it has to be made public once (package page → Package settings → Change visibility).
+After that anyone can pull without logging in:
+
+```
+$ docker logout ghcr.io
+$ docker pull ghcr.io/leewiscovitch/wiscoddns:1.0.0
+```
+
+The `org.opencontainers.image.source` label in the Dockerfile is what links the package to this repo.
+
+## 6. Running it, upgrading and rolling back
+
+Pin the exact version (`ghcr.io/leewiscovitch/wiscoddns:1.0.0`) in compose or `docker run`. To **upgrade**,
+change the tag and recreate the container (`docker compose up -d`); to **roll back**, put the old tag back and
+do the same: every version stays in the registry. For a stronger pin, use the digest:
+
+```
+$ docker buildx imagetools inspect ghcr.io/leewiscovitch/wiscoddns:1.0.0 --format '{{.Manifest.Digest}}'
+sha256:...
+# image: ghcr.io/leewiscovitch/wiscoddns:1.0.0@sha256:...
 ```
