@@ -1,0 +1,4 @@
+# Only src/ goes into the image: keep the build context small and keep everything else
+# (git history, tests, docs, any local .env) out of the image layers.
+*
+!src/

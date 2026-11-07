@@ -1,0 +1,6 @@
+# hadolint settings (scripts/test.sh mounts this file into the hadolint container)
+ignored:
+  # DL3008 "pin versions in apt-get install": the base image is pinned by digest instead. Ubuntu removes old
+  # package versions from its mirrors, so exact apt pins would break the build within weeks. Rebuilding on a
+  # newer digest (Dependabot) is how packages get updated.
+  - DL3008

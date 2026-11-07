@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Fake curl for the tests: tests/helpers.bash puts this folder first on PATH, so the code under test runs this
+# instead of the real curl and never touches the network.
+#
+# Routes live in $FAKE_CURL_DIR/routes, one per line:   METHOD URL_SUBSTRING RESPONSE_FILE
+#   - the first line whose METHOD matches (from -X, default GET) and whose URL_SUBSTRING is in the URL wins
+#   - its RESPONSE_FILE is printed; RESPONSE_FILE "FAIL" exits 7 (curl's "couldn't connect")
+#   - no matching route: exit 7 too
+# Every call is appended to $FAKE_CURL_DIR/calls.log as:  METHOD URL DATA
+# All other flags (-s, -f, -H, --max-time ...) are accepted and ignored.
+set -euo pipefail
+
+method=GET url="" data=""
+while [ $# -gt 0 ]; do
+  case $1 in
+    -X | --request) method=$2; shift 2 ;;
+    -d | --data | --data-raw | --data-binary) data=$2; shift 2 ;;
+    # flags that take a value we don't need: skip both
+    -H | --header | -m | --max-time | --connect-timeout | -o | --output | -w | --write-out | -u | --user) shift 2 ;;
+    http://* | https://*) url=$1; shift ;;
+    *) shift ;;   # -s, -S, -f, -4, -fsS ...
+  esac
+done
+
+echo "$method $url${data:+ $data}" >> "$FAKE_CURL_DIR/calls.log"
+
+while read -r r_method r_substr r_file; do
+  [ "$r_method" = "$method" ] || continue
+  [[ $url == *"$r_substr"* ]] || continue
+  [ "$r_file" = FAIL ] && exit 7
+  cat "$r_file"
+  exit 0
+done < "$FAKE_CURL_DIR/routes"
+
+exit 7

@@ -1,0 +1,4 @@
+# Local settings and secrets: never committed (this repo is public)
+.env
+*.token
+secrets/

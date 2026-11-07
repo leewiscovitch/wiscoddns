@@ -1,0 +1,20 @@
+# CI: runs on every push and pull request. If it's red, don't release.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+# The workflow's GITHUB_TOKEN can only read the repo (least privilege: CI needs nothing else)
+permissions:
+  contents: read
+
+jobs:
+  # Job name "test" is a required status check on main (branch protection, set in the homelab's tofu)
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      # Third-party actions are pinned by commit SHA, not tag: a tag can be moved to other code, a SHA can't
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The same script as on a laptop: shellcheck, hadolint, bats, each in a pinned container
+      - run: scripts/test.sh

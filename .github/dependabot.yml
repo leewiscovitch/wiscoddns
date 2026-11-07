@@ -1,0 +1,18 @@
+# Dependabot opens a pull request when something we pin has a newer version.
+version: 2
+updates:
+  # The actions in .github/workflows/ (pinned by commit SHA; Dependabot updates the SHA and the # vX.Y.Z comment)
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  # The FROM lines: the base image digest in Dockerfile ...
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+  # ... and the test image (same base, plus bats)
+  - package-ecosystem: docker
+    directory: /tests
+    schedule:
+      interval: weekly
