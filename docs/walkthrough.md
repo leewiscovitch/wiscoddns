@@ -267,13 +267,15 @@ There is deliberately no `latest`: it says nothing about what you get.
 
 ### GHCR and package visibility
 
-GitHub Container Registry stores images next to the repo. The first push creates a **private** package, even
-from a public repo; it has to be made public once (package page → Package settings → Change visibility).
-After that anyone can pull without logging in:
+GitHub Container Registry stores images next to the repo. A package that a workflow pushes from a repo, with
+the `org.opencontainers.image.source` label pointing at it, is **linked** to that repo and takes its visibility:
+this repo is public, so the package was public from the first push (GitHub's docs say a new package may start
+private; check the package page, and change it there under Package settings → Change visibility if needed).
+Anyone can pull without logging in:
 
 ```
-$ docker logout ghcr.io
-$ docker pull ghcr.io/leewiscovitch/wiscoddns:1.0.1
+$ DOCKER_CONFIG=$(mktemp -d) docker pull -q ghcr.io/leewiscovitch/wiscoddns:1.0.1   # empty config = anonymous
+ghcr.io/leewiscovitch/wiscoddns:1.0.1
 ```
 
 The `org.opencontainers.image.source` label in the Dockerfile is what links the package to this repo.
