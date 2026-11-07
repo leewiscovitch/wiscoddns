@@ -2,9 +2,10 @@
 # Fake curl for the tests: tests/helpers.bash puts this folder first on PATH, so the code under test runs this
 # instead of the real curl and never touches the network.
 #
-# Routes live in $FAKE_CURL_DIR/routes, one per line:   METHOD URL_SUBSTRING RESPONSE_FILE
+# Routes live in $FAKE_CURL_DIR/routes, one per line:   METHOD URL_SUBSTRING RESPONSE_FILE [TIMES]
 #   - the first line whose METHOD matches (from -X, default GET) and whose URL_SUBSTRING is in the URL wins
 #   - its RESPONSE_FILE is printed; RESPONSE_FILE "FAIL" exits 7 (curl's "couldn't connect")
+#   - a route with TIMES answers at most TIMES calls, then is skipped (e.g. "fail 3 times, then work")
 #   - no matching route: exit 7 too
 # Every call is appended to $FAKE_CURL_DIR/calls.log as:  METHOD URL DATA
 # and its full command line to $FAKE_CURL_DIR/argv.log (tests check that no secret is ever on it).
@@ -27,9 +28,17 @@ done
 
 echo "$method $url${data:+ $data}" >> "$FAKE_CURL_DIR/calls.log"
 
-while read -r r_method r_substr r_file; do
+n=0
+while read -r r_method r_substr r_file r_times; do
+  n=$((n + 1))
   [ "$r_method" = "$method" ] || continue
   [[ $url == *"$r_substr"* ]] || continue
+  if [ -n "$r_times" ]; then
+    # count this route's uses in a file per route line
+    used=$(cat "$FAKE_CURL_DIR/used.$n" 2>/dev/null || echo 0)
+    [ "$used" -lt "$r_times" ] || continue
+    echo $((used + 1)) > "$FAKE_CURL_DIR/used.$n"
+  fi
   [ "$r_file" = FAIL ] && exit 7
   cat "$r_file"
   exit 0

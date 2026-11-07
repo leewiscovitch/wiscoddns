@@ -33,3 +33,15 @@ setup() {
   run cat "$FAKE_CURL_DIR/calls.log"
   assert_output 'PATCH https://example.org/r {"a":1}'
 }
+
+@test "fake curl route with TIMES answers that many calls, then the next route" {
+  route GET example.org/x FAIL 2
+  route GET example.org/x 'ok'
+  run curl -s https://example.org/x
+  assert_failure 7
+  run curl -s https://example.org/x
+  assert_failure 7
+  run curl -s https://example.org/x
+  assert_success
+  assert_output 'ok'
+}

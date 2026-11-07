@@ -17,21 +17,22 @@ export PATH="$REPO_ROOT/tests/fakes:$PATH"
 : > "$FAKE_CURL_DIR/routes"
 : > "$FAKE_CURL_DIR/calls.log"
 
-# route METHOD URL_SUBSTRING BODY
+# route METHOD URL_SUBSTRING BODY [TIMES]
 # Answer requests whose method is METHOD and whose URL contains URL_SUBSTRING with BODY. BODY "FAIL" makes the
 # fake curl exit 7, like a connection failure. Earlier routes win, so add specific routes before general ones.
+# TIMES: the route answers only that many calls, then later routes take over.
 route() {
-  local method=$1 substr=$2 body=$3 file
+  local method=$1 substr=$2 body=$3 times=${4:-} file
   if [ "$body" = FAIL ]; then
     file=FAIL
   else
     file=$(mktemp "$FAKE_CURL_DIR/body.XXXXXX")
     printf '%s' "$body" > "$file"
   fi
-  echo "$method $substr $file" >> "$FAKE_CURL_DIR/routes"
+  echo "$method $substr $file $times" >> "$FAKE_CURL_DIR/routes"
 }
 
-# route_file METHOD URL_SUBSTRING FILE: like route, with the body read from a file (tests/fixtures/...)
+# route_file METHOD URL_SUBSTRING FILE [TIMES]: like route, with the body read from a file (tests/fixtures/...)
 route_file() {
-  echo "$1 $2 $3" >> "$FAKE_CURL_DIR/routes"
+  echo "$1 $2 $3 ${4:-}" >> "$FAKE_CURL_DIR/routes"
 }

@@ -160,3 +160,41 @@ wd_update_record() {
   fi
   wd_cf_api PATCH "/zones/$WD_ZONE_ID/dns_records/$WD_RECORD_ID" "$(jq -cn --arg ip "$ip" '{content: $ip}')" >/dev/null
 }
+
+# --- Notifications (ntfy) -----------------------------------------------------------------------------------
+
+# Optional header file with "Authorization: Bearer <ntfy token>" (written by wiscoddns.sh when
+# WISCODDNS_NTFY_TOKEN_FILE is set)
+WD_NTFY_HEADER_FILE=${WD_NTFY_HEADER_FILE:-}
+
+# wd_notify TITLE MESSAGE: posts to ntfy (https://docs.ntfy.sh/publish/) when WISCODDNS_NTFY_URL is set.
+# Always rc 0: a notification problem is logged, but never fails a round.
+wd_notify() {
+  local title=$1 message=$2
+  [ -n "${WISCODDNS_NTFY_URL:-}" ] || return 0
+  local args=(-fsS --max-time 10 -X POST -H "Title: $title" --data "$message")
+  [ -n "$WD_NTFY_HEADER_FILE" ] && args+=(-H @"$WD_NTFY_HEADER_FILE")
+  if ! curl "${args[@]}" "$WISCODDNS_NTFY_URL/${WISCODDNS_NTFY_TOPIC:-wiscoddns}" >/dev/null; then
+    wd_log WARN "ntfy notification failed ($title)"
+  fi
+  return 0
+}
+
+# --- One round ----------------------------------------------------------------------------------------------
+
+# wd_round: public IP -> record's address -> change it if they differ (and notify). rc 0 = the record is right
+# (or was just fixed); rc 1 = something failed and nothing was written.
+wd_round() {
+  local ip current
+  ip=$(wd_public_ip) || return 1
+  current=$(wd_record_ip) || return 1
+  if [ "$ip" = "$current" ]; then
+    wd_log INFO "$WISCODDNS_RECORD unchanged ($ip)"
+    return 0
+  fi
+  wd_update_record "$ip" || return 1
+  if [ "${WISCODDNS_DRY_RUN:-0}" != 1 ]; then
+    wd_log INFO "$WISCODDNS_RECORD updated: $current -> $ip"
+    wd_notify "wiscoddns: address changed" "$WISCODDNS_RECORD changed from $current to $ip"
+  fi
+}
