@@ -6,3 +6,4 @@ versions follow [Semantic Versioning](https://semver.org/) (git tag `vX.Y.Z` →
 ## [Unreleased]
 
 - Test kit: `scripts/test.sh` (shellcheck, hadolint, bats in pinned containers), fake `curl`, CI on every push
+- Public IPv4 lookup from two sources (Cloudflare trace, ipify), only valid public addresses, both must agree

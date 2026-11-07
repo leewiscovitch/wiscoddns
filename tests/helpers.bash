@@ -1,6 +1,9 @@
 # Shared setup for every .bats file:  load helpers   (at the top of the file)
 
 # Assertions: assert_success, assert_output, assert_line ... (https://github.com/bats-core/bats-assert)
+# run --separate-stderr and run -N need bats 1.5+ (the test image has 1.13)
+bats_require_minimum_version 1.5.0
+
 load '/usr/lib/bats/bats-support/load'
 load '/usr/lib/bats/bats-assert/load'
 
