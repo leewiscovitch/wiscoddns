@@ -239,6 +239,18 @@ $ gh run watch                                # follow it live
 4. **Trivy** scans the pushed image for known vulnerabilities (CVEs). Fixable CRITICAL or HIGH findings turn the
    run red: rebuild on a newer base (Dependabot's pull request) and release a patch version
 
+This happened on the very first release. The image was already pushed when the scan failed:
+
+```
+Total: 2 (HIGH: 2, CRITICAL: 0)
+│ apt           │ CVE-2026-109518 │ HIGH │ fixed │ 3.2.0 │ 3.2.1ubuntu0.1 │ apt: Remote code execution ...
+│ libapt-pkg7.0 │                 │      │       │       │                │
+```
+
+Ubuntu had the fix in its mirrors but hadn't rebuilt the `ubuntu:26.04` base yet. The Dockerfile now runs
+`apt-get upgrade` before installing packages, and 1.0.1 went out with the fix. Tags are never moved or
+reused: 1.0.0 stays as it was, and the CHANGELOG says to use 1.0.1.
+
 ### SemVer and the moving tags
 
 [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`. PATCH = fixes, MINOR = new features that
@@ -261,19 +273,19 @@ After that anyone can pull without logging in:
 
 ```
 $ docker logout ghcr.io
-$ docker pull ghcr.io/leewiscovitch/wiscoddns:1.0.0
+$ docker pull ghcr.io/leewiscovitch/wiscoddns:1.0.1
 ```
 
 The `org.opencontainers.image.source` label in the Dockerfile is what links the package to this repo.
 
 ## 6. Running it, upgrading and rolling back
 
-Pin the exact version (`ghcr.io/leewiscovitch/wiscoddns:1.0.0`) in compose or `docker run`. To **upgrade**,
+Pin the exact version (`ghcr.io/leewiscovitch/wiscoddns:1.0.1`) in compose or `docker run`. To **upgrade**,
 change the tag and recreate the container (`docker compose up -d`); to **roll back**, put the old tag back and
 do the same: every version stays in the registry. For a stronger pin, use the digest:
 
 ```
-$ docker buildx imagetools inspect ghcr.io/leewiscovitch/wiscoddns:1.0.0 --format '{{.Manifest.Digest}}'
+$ docker buildx imagetools inspect ghcr.io/leewiscovitch/wiscoddns:1.0.1 --format '{{.Manifest.Digest}}'
 sha256:...
-# image: ghcr.io/leewiscovitch/wiscoddns:1.0.0@sha256:...
+# image: ghcr.io/leewiscovitch/wiscoddns:1.0.1@sha256:...
 ```

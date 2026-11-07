@@ -4,7 +4,7 @@ A home-made dynamic DNS updater for Cloudflare: a small bash script in a contain
 (for example `ddns.example.org`) pointed at your current **public IPv4** address.
 
 ```
-docker pull ghcr.io/leewiscovitch/wiscoddns:1.0.0      # linux/amd64 and linux/arm64
+docker pull ghcr.io/leewiscovitch/wiscoddns:1.0.1      # linux/amd64 and linux/arm64
 ```
 
 ## Why
@@ -78,7 +78,7 @@ printf '%s' 'YOUR_TOKEN' > cloudflare_token && sudo chown 10001 cloudflare_token
 docker run -d --name wiscoddns --restart unless-stopped \
   -e WISCODDNS_ZONE=example.org -e WISCODDNS_RECORD=ddns.example.org \
   -v "$PWD/cloudflare_token:/run/secrets/cloudflare_token:ro" \
-  ghcr.io/leewiscovitch/wiscoddns:1.0.0
+  ghcr.io/leewiscovitch/wiscoddns:1.0.1
 ```
 
 The container runs as UID **10001**, so the token file must be readable by that user.
@@ -88,7 +88,7 @@ The container runs as UID **10001**, so the token file must be readable by that 
 ```yaml
 services:
   wiscoddns:
-    image: ghcr.io/leewiscovitch/wiscoddns:1.0.0   # pin an exact version
+    image: ghcr.io/leewiscovitch/wiscoddns:1.0.1   # pin an exact version
     container_name: wiscoddns
     restart: unless-stopped
     environment:
@@ -128,7 +128,7 @@ Try one round without changing anything (the same settings and token as the runn
 docker run --rm -e WISCODDNS_ONCE=1 -e WISCODDNS_DRY_RUN=1 \
   -e WISCODDNS_ZONE=example.org -e WISCODDNS_RECORD=ddns.example.org \
   -v "$PWD/cloudflare_token:/run/secrets/cloudflare_token:ro" \
-  ghcr.io/leewiscovitch/wiscoddns:1.0.0; echo rc=$?
+  ghcr.io/leewiscovitch/wiscoddns:1.0.1; echo rc=$?
 ```
 
 - `zone ... not found`: wrong `WISCODDNS_ZONE`, or the token has no access to that zone

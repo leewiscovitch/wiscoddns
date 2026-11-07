@@ -30,7 +30,11 @@ LABEL org.opencontainers.image.title="wiscoddns" \
 #                   behaves the same however it is run
 # --no-install-recommends skips "nice to have" packages. The apt lists are deleted in the same RUN: a file
 # deleted in a later layer still takes space in the earlier one.
+# apt-get upgrade first: Ubuntu publishes security fixes to its mirrors days or weeks before it rebuilds the
+# base image, and the release scan (Trivy) fails on fixable HIGH/CRITICAL findings (1.0.0 shipped apt 3.2.0 with
+# CVE-2026-109518; the fix 3.2.1ubuntu0.1 was only in the mirrors).
 RUN apt-get update \
+ && apt-get upgrade -y \
  && apt-get install -y --no-install-recommends curl jq ca-certificates tini \
  && rm -rf /var/lib/apt/lists/*
 
