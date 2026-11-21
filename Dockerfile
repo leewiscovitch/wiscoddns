@@ -5,7 +5,7 @@
 # time; the digest (a SHA-256 of the image's manifest) always means exactly the same bytes. Dependabot opens a
 # pull request when a new digest is published. To see the current one:
 #   docker buildx imagetools inspect ubuntu:26.04
-FROM ubuntu:26.04@sha256:6a06111c3b0a8600feadb270aec771dc239bf407b25625f93f44ab00e11f4d3c
+FROM ubuntu:26.04@sha256:d66b366dac61b575bee2aef07e9c26e8070096fbe84a3d4d3eb0da069b5d76db
 
 # Build arguments: set by the release workflow (VERSION from the git tag, REVISION = the commit SHA).
 # A plain local build gets "dev" / "unknown".
