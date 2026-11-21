@@ -2,7 +2,7 @@
 # Built and run by scripts/test.sh; never published.
 
 # Same base and digest as ../Dockerfile (Dependabot bumps both)
-FROM ubuntu:26.04@sha256:6a06111c3b0a8600feadb270aec771dc239bf407b25625f93f44ab00e11f4d3c
+FROM ubuntu:26.04@sha256:d66b366dac61b575bee2aef07e9c26e8070096fbe84a3d4d3eb0da069b5d76db
 
 # jq: the app parses Cloudflare's JSON with it. curl is NOT installed: tests use the fake in tests/fakes/
 RUN apt-get update \
